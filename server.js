@@ -371,7 +371,6 @@ app.post('/send-email', async (req, res) => {
   if (!to || !subject || !body) return res.status(400).json({ error: 'to, subject and body are required' });
 
   const agencyName = fromName || process.env.AGENCY_NAME || 'LaunchSite';
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
   try {
     const resendRes = await fetch('https://api.resend.com/emails', {
@@ -381,20 +380,14 @@ app.post('/send-email', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: `${agencyName} <${fromEmail}>`,
+        from: `${agencyName} <onboarding@resend.dev>`,
         to: [to],
         subject,
         text: body
       })
     });
-
     const data = await resendRes.json();
-
-    if (!resendRes.ok) {
-      const msg = data?.message || data?.error?.message || data?.name || JSON.stringify(data);
-      throw new Error(`Resend error: ${msg}`);
-    }
-
+    if (!resendRes.ok) throw new Error(data?.message || data?.name || JSON.stringify(data));
     res.json({ success: true, id: data.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
