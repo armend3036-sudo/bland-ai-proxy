@@ -210,9 +210,7 @@ Return ONLY a raw JSON object with exactly these keys (no markdown, no backticks
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Bland AI proxy v3 running on port ${PORT}`);
-});
+app.post('/generate-page', async (req, res) => {
   const geminiKey = process.env.GEMINI_API_KEY;
   const googleKey = process.env.GOOGLE_PLACES_KEY;
   if (!geminiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
@@ -288,21 +286,20 @@ Make it genuinely impressive — this is a sales demo to convince the business o
         })
       }
     );
-
     const data = await response.json();
     if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-
     const parts = data.candidates?.[0]?.content?.parts || [];
     let html = parts.map(p => p.text || '').join('').trim();
-
     html = html.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
-
     if (!html.includes('<html') && !html.includes('<!DOCTYPE')) {
       throw new Error('Gemini did not return a valid HTML document');
     }
-
     res.json({ html, businessName: placeData.name, placeData });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.listen(PORT, () => {
+  console.log(`Bland AI proxy v3 running on port ${PORT}`);
 });
