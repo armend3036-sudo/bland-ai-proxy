@@ -243,7 +243,29 @@ app.post('/generate-page', async (req, res) => {
     } catch (e) {}
   }
 
-  const prompt = `You are an expert web designer. Create a complete, modern, beautiful single-page HTML website for this business.
+  const INDUSTRY_STYLES = {
+    plumber: { color: '#1a3a5c', accent: '#f97316', font: 'Roboto', feel: 'trustworthy and professional', hero: 'Emergency plumbing? We are available 24/7', sections: 'emergency services callout, licensing badges, before/after, service areas map', cta: 'Call Now for Fast Service' },
+    hvac: { color: '#0f4c81', accent: '#f59e0b', font: 'Inter', feel: 'reliable and technical', hero: 'Heating & Cooling Experts You Can Trust', sections: 'seasonal specials, energy savings, financing available, maintenance plans', cta: 'Get a Free Estimate' },
+    electrician: { color: '#1e293b', accent: '#eab308', font: 'Montserrat', feel: 'bold and safety-focused', hero: 'Licensed Electricians — Fast, Safe & Reliable', sections: 'safety badges, residential vs commercial, 24/7 emergency, permits handled', cta: 'Schedule an Electrician' },
+    roofer: { color: '#7c2d12', accent: '#dc2626', font: 'Oswald', feel: 'strong and durable', hero: 'Expert Roofing — Protect Your Home', sections: 'storm damage, insurance claims help, free inspection, warranties', cta: 'Get a Free Roof Inspection' },
+    landscaper: { color: '#14532d', accent: '#4ade80', font: 'Lato', feel: 'natural and fresh', hero: 'Beautiful Landscapes, Expertly Maintained', sections: 'seasonal packages, before/after gallery, lawn care schedule, design services', cta: 'Get a Free Quote' },
+    'pest control': { color: '#422006', accent: '#f97316', font: 'Roboto', feel: 'clean and reassuring', hero: 'Pest-Free Living Starts Here', sections: 'common pests treated, safe for kids/pets, monthly plans, satisfaction guarantee', cta: 'Book a Free Inspection' },
+    dentist: { color: '#0c4a6e', accent: '#06b6d4', font: 'Nunito', feel: 'clean, calm and trustworthy', hero: 'Healthy Smiles for the Whole Family', sections: 'services list, new patient offer, insurance accepted, before/after smiles, team photos', cta: 'Book Your Appointment' },
+    chiropractor: { color: '#1e3a5f', accent: '#10b981', font: 'Raleway', feel: 'wellness and healing', hero: 'Live Pain-Free — Expert Chiropractic Care', sections: 'conditions treated, new patient special, testimonials, what to expect', cta: 'Book a Free Consultation' },
+    veterinarian: { color: '#1a4731', accent: '#34d399', font: 'Nunito', feel: 'warm, caring and professional', hero: 'Compassionate Care for Your Pets', sections: 'services, emergency care, wellness plans, meet the vets, pet health tips', cta: 'Book an Appointment' },
+    'auto repair': { color: '#1c1917', accent: '#f97316', font: 'Oswald', feel: 'bold, mechanical and trustworthy', hero: 'Expert Auto Repair — Done Right the First Time', sections: 'services, warranty on work, certified mechanics, free diagnostics, fleet services', cta: 'Schedule Your Service' },
+    restaurant: { color: '#1c0a00', accent: '#b45309', font: 'Playfair Display', feel: 'warm, inviting and appetizing', hero: 'Fresh Food. Great Atmosphere. Unforgettable Experience.', sections: 'menu highlights, hours, reservations, story/chef, catering', cta: 'Reserve a Table' },
+    'hair salon': { color: '#3b0764', accent: '#d946ef', font: 'Cormorant Garamond', feel: 'luxurious and stylish', hero: 'Look Your Best — Expert Hair Care', sections: 'services menu with pricing, stylists, gallery, online booking, products used', cta: 'Book Your Style Session' },
+    barbershop: { color: '#1a1a2e', accent: '#e94560', font: 'Bebas Neue', feel: 'classic, masculine and sharp', hero: 'Sharp Cuts. Clean Fades. Classic Style.', sections: 'services and pricing, barbers, gallery, walk-ins welcome, loyalty program', cta: 'Book a Cut' },
+    accountant: { color: '#0f172a', accent: '#3b82f6', font: 'Source Sans Pro', feel: 'professional, precise and trustworthy', hero: 'Expert Accounting — Maximize Your Returns', sections: 'services, business vs personal, tax deadline reminders, secure portal, CPA credentials', cta: 'Schedule a Consultation' },
+    lawyer: { color: '#1a1a1a', accent: '#b8960c', font: 'Libre Baskerville', feel: 'authoritative, serious and prestigious', hero: 'Experienced Legal Representation You Can Trust', sections: 'practice areas, case results, free consultation, bar memberships, awards', cta: 'Get a Free Consultation' },
+    'real estate': { color: '#0f172a', accent: '#f59e0b', font: 'Raleway', feel: 'premium and professional', hero: 'Find Your Dream Home — Local Real Estate Experts', sections: 'featured listings, market stats, buyer/seller guides, testimonials, area expertise', cta: 'Start Your Search' }
+  };
+
+  const nicheKey = (placeData.niche || '').toLowerCase().trim();
+  const style = INDUSTRY_STYLES[nicheKey] || { color: '#1e293b', accent: '#3b82f6', font: 'Inter', feel: 'modern and professional', hero: 'Professional Services You Can Trust', sections: 'services, about, testimonials, contact', cta: 'Contact Us Today' };
+
+  const prompt = `You are an expert web designer specialising in local business websites. Create a complete, stunning single-page HTML website for this business.
 
 Business:
 Name: ${placeData.name}
@@ -254,15 +276,25 @@ Rating: ${placeData.rating ? placeData.rating + ' stars (' + placeData.reviewCou
 Description: ${placeData.description || ''}
 Hours: ${placeData.hours || ''}
 
-CRITICAL REQUIREMENTS - you MUST follow all of these:
-1. Output ONLY the HTML. No explanation, no markdown, no code fences, no backticks. Just raw HTML starting with <!DOCTYPE html>
-2. All CSS must be inside a <style> tag in the <head>. No external CSS files.
-3. Use one Google Fonts import link for typography
-4. Sections: hero with big headline + CTA phone button, services/about, trust signals, contact with phone
+INDUSTRY DESIGN BRIEF:
+- Overall feel: ${style.feel}
+- Primary color: ${style.color}
+- Accent color: ${style.accent}
+- Font: ${style.font} from Google Fonts
+- Hero headline theme: "${style.hero}"
+- Industry-specific sections to include: ${style.sections}
+- Primary CTA button text: "${style.cta}"
+
+REQUIREMENTS:
+1. Output ONLY raw HTML starting with <!DOCTYPE html> — no markdown, no backticks, nothing else
+2. All CSS in a <style> tag — no external stylesheets except one Google Fonts import
+3. Use the exact primary and accent colors specified above
+4. Sections: sticky nav, hero with large headline + prominent phone CTA button, services, industry-specific sections listed above, trust signals (${placeData.rating ? placeData.rating + ' stars' : 'licensed & insured, years in business'}), contact section with phone number large, footer
 5. Add a small top banner: "✨ Free preview — built by LaunchSite"
-6. Fully mobile responsive using CSS media queries
-7. Pick a bold, professional color scheme that fits their industry
-8. Make it genuinely impressive — this must convince the owner to buy
+6. Fully mobile responsive with CSS media queries
+7. Write real, compelling copy specific to this business type — not lorem ipsum
+8. Smooth scroll between sections
+9. Make it genuinely impressive — this is a sales demo that must make the owner say "I need this"
 
 START YOUR RESPONSE WITH <!DOCTYPE html> AND NOTHING ELSE.`;
 
@@ -400,7 +432,29 @@ app.post('/build-site', async (req, res) => {
   const { feedback } = req.body;
   if (!feedback?.businessName) return res.status(400).json({ error: 'feedback.businessName required' });
 
-  const prompt = `You are an expert web designer. Build a complete, stunning, production-quality single-page website based on this client brief.
+  const SITE_INDUSTRY_STYLES = {
+    plumber: { color: '#1a3a5c', accent: '#f97316', font: 'Roboto', feel: 'trustworthy, reliable and urgent', extras: 'Include a 24/7 emergency callout banner, licensing/insurance badges, and a service areas section.' },
+    hvac: { color: '#0f4c81', accent: '#f59e0b', font: 'Inter', feel: 'technical, reliable and energy-efficient', extras: 'Include seasonal specials, financing available callout, and an energy savings section.' },
+    electrician: { color: '#1e293b', accent: '#eab308', font: 'Montserrat', feel: 'bold, safety-focused and professional', extras: 'Include safety certification badges, residential vs commercial tabs, and a 24/7 emergency callout.' },
+    roofer: { color: '#7c2d12', accent: '#dc2626', font: 'Oswald', feel: 'strong, durable and storm-ready', extras: 'Include a storm damage section, insurance claims help callout, and a free inspection offer.' },
+    landscaper: { color: '#14532d', accent: '#4ade80', font: 'Lato', feel: 'natural, fresh and beautiful', extras: 'Include seasonal packages, a before/after gallery section, and a lawn care schedule.' },
+    'pest control': { color: '#422006', accent: '#f97316', font: 'Roboto', feel: 'clean, reassuring and effective', extras: 'Include a safe for kids/pets callout, common pests list, and monthly plan options.' },
+    dentist: { color: '#0c4a6e', accent: '#06b6d4', font: 'Nunito', feel: 'clean, calming and trustworthy', extras: 'Include a new patient special offer, insurance accepted logos, and a before/after smiles gallery.' },
+    chiropractor: { color: '#1e3a5f', accent: '#10b981', font: 'Raleway', feel: 'healing, wellness and pain-free', extras: 'Include conditions treated list, a new patient discount, and a what to expect section.' },
+    veterinarian: { color: '#1a4731', accent: '#34d399', font: 'Nunito', feel: 'warm, caring and compassionate', extras: 'Include wellness plans, emergency care callout, and a meet the team section.' },
+    'auto repair': { color: '#1c1917', accent: '#f97316', font: 'Oswald', feel: 'bold, mechanical and trustworthy', extras: 'Include warranty on work badge, certified mechanics callout, and a free diagnostics offer.' },
+    restaurant: { color: '#1c0a00', accent: '#b45309', font: 'Playfair Display', feel: 'warm, inviting and appetizing', extras: 'Include a menu highlights section, reservation form, and a catering services callout.' },
+    'hair salon': { color: '#3b0764', accent: '#d946ef', font: 'Cormorant Garamond', feel: 'luxurious, stylish and creative', extras: 'Include a services menu with pricing, stylist profiles, and an online booking section.' },
+    barbershop: { color: '#1a1a2e', accent: '#e94560', font: 'Bebas Neue', feel: 'classic, sharp and masculine', extras: 'Include a services and pricing table, walk-ins welcome callout, and a barber profiles section.' },
+    accountant: { color: '#0f172a', accent: '#3b82f6', font: 'Source Sans Pro', feel: 'professional, precise and trustworthy', extras: 'Include tax deadline reminders, business vs personal services, and a secure portal callout.' },
+    lawyer: { color: '#1a1a1a', accent: '#b8960c', font: 'Libre Baskerville', feel: 'authoritative, serious and prestigious', extras: 'Include practice areas, notable case results, bar memberships, and a free consultation offer.' },
+    'real estate': { color: '#0f172a', accent: '#f59e0b', font: 'Raleway', feel: 'premium, professional and aspirational', extras: 'Include featured listings, market stats, buyer/seller guides, and area expertise sections.' }
+  };
+
+  const typeKey = (feedback.type || '').toLowerCase().trim();
+  const indStyle = SITE_INDUSTRY_STYLES[typeKey] || { color: '#1e293b', accent: '#3b82f6', font: 'Inter', feel: 'modern, professional and conversion-focused', extras: '' };
+
+  const prompt = `You are an expert web designer specialising in local business websites. Build a complete, stunning, production-quality single-page website based on this brief.
 
 CLIENT BRIEF:
 Business: ${feedback.businessName}
@@ -410,23 +464,29 @@ Phone: ${feedback.phone || ''}
 Services: ${feedback.services || ''}
 Target customers: ${feedback.customers || ''}
 Tagline / differentiator: ${feedback.tagline || ''}
-Style: ${feedback.style || 'modern and clean'}
-Colours: ${feedback.color || 'choose the best color for this industry'}
-Main CTA: ${feedback.cta || 'Contact us'}
-Trust signals: ${feedback.trust || ''}
+Style preference: ${feedback.style || indStyle.feel}
+Colour preference: ${feedback.color !== 'choose the best color for this industry' ? feedback.color : `Primary ${indStyle.color}, Accent ${indStyle.accent}`}
+Font: ${indStyle.font} from Google Fonts
+Main CTA: ${feedback.cta || 'Contact Us Today'}
+Trust signals: ${feedback.trust || 'Licensed & Insured, Years of Experience, 5-Star Reviews'}
 Sections to include: ${feedback.sections || 'Hero, Services, About, Testimonials, Contact Form'}
 Special requests: ${feedback.extra || 'none'}
 
+INDUSTRY DESIGN NOTES:
+Overall feel: ${indStyle.feel}
+${indStyle.extras}
+
 REQUIREMENTS:
 - Complete self-contained HTML with all CSS in a <style> tag
-- One Google Fonts import only
-- Every section from the brief must be included
+- Google Fonts import for ${indStyle.font}
+- Use primary color ${indStyle.color} and accent ${indStyle.accent} throughout
+- Every section from the brief must be present
 - Mobile responsive with CSS media queries
-- Real, convincing placeholder content (not lorem ipsum — write actual copy for this business)
-- Smooth scroll navigation
-- Hero has a prominent phone CTA button
+- Write real, compelling, industry-specific copy — not lorem ipsum
+- Smooth scroll navigation with sticky header
+- Hero has a large headline and prominent phone CTA button
 - Footer with phone, address, copyright
-- Make it genuinely beautiful and conversion-focused
+- Make it genuinely beautiful and conversion-focused — the business owner must want to buy it
 
 START YOUR RESPONSE WITH <!DOCTYPE html> AND NOTHING ELSE.`;
 
