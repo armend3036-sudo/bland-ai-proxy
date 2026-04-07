@@ -213,3 +213,96 @@ Return ONLY a raw JSON object with exactly these keys (no markdown, no backticks
 app.listen(PORT, () => {
   console.log(`Bland AI proxy v3 running on port ${PORT}`);
 });
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const googleKey = process.env.GOOGLE_PLACES_KEY;
+  if (!geminiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
+  if (!googleKey) return res.status(500).json({ error: 'GOOGLE_PLACES_KEY not set' });
+
+  const { placeId, businessName, phone, address, niche } = req.body;
+  if (!businessName) return res.status(400).json({ error: 'businessName required' });
+
+  let placeData = { name: businessName, phone, address, niche };
+
+  if (placeId) {
+    try {
+      const placeRes = await fetch(
+        `https://places.googleapis.com/v1/places/${placeId}`,
+        {
+          headers: {
+            'X-Goog-Api-Key': googleKey,
+            'X-Goog-FieldMask': 'displayName,formattedAddress,nationalPhoneNumber,websiteUri,rating,userRatingCount,regularOpeningHours,editorialSummary,photos,types'
+          }
+        }
+      );
+      const pd = await placeRes.json();
+      if (!pd.error) {
+        placeData = {
+          name: pd.displayName?.text || businessName,
+          phone: pd.nationalPhoneNumber || phone,
+          address: pd.formattedAddress || address,
+          website: pd.websiteUri,
+          rating: pd.rating,
+          reviewCount: pd.userRatingCount,
+          description: pd.editorialSummary?.text,
+          hours: pd.regularOpeningHours?.weekdayDescriptions?.join(', '),
+          types: (pd.types || []).join(', '),
+          niche
+        };
+      }
+    } catch (e) {}
+  }
+
+  const prompt = `You are an expert web designer. Create a stunning, modern, conversion-optimised single-page HTML website for a small business.
+
+Business details:
+- Name: ${placeData.name}
+- Type: ${placeData.niche || placeData.types || 'local business'}
+- Phone: ${placeData.phone || 'Call us today'}
+- Address: ${placeData.address || ''}
+- Rating: ${placeData.rating ? placeData.rating + '/5 (' + placeData.reviewCount + ' reviews)' : ''}
+- Description: ${placeData.description || ''}
+- Hours: ${placeData.hours || ''}
+
+Requirements:
+- Fully self-contained HTML with all CSS inline (no external dependencies except Google Fonts)
+- Hero section with business name, tagline, and call-to-action button (phone number)
+- Services/about section relevant to their business type
+- Trust signals (rating, years in business, local area)
+- Contact section with phone number prominent
+- Mobile responsive
+- Modern, professional design with a colour scheme that suits their industry
+- Footer with address and phone
+- Add a subtle banner at the top: "✨ Free website preview — built by LaunchSite"
+
+Make it genuinely impressive — this is a sales demo to convince the business owner to buy. Return ONLY the complete HTML document, nothing else.`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 8192 }
+        })
+      }
+    );
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    let html = parts.map(p => p.text || '').join('').trim();
+
+    html = html.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    if (!html.includes('<html') && !html.includes('<!DOCTYPE')) {
+      throw new Error('Gemini did not return a valid HTML document');
+    }
+
+    res.json({ html, businessName: placeData.name, placeData });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
