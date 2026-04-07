@@ -363,6 +363,37 @@ app.post('/deploy-page', async (req, res) => {
   }
 });
 
+app.post('/send-email', async (req, res) => {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) return res.status(500).json({ error: 'RESEND_API_KEY not set in Railway variables' });
+
+  const { to, subject, body, fromName } = req.body;
+  if (!to || !subject || !body) return res.status(400).json({ error: 'to, subject and body are required' });
+
+  const agencyName = fromName || process.env.AGENCY_NAME || 'LaunchSite';
+
+  try {
+    const res2 = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: `${agencyName} <onboarding@resend.dev>`,
+        to: [to],
+        subject,
+        text: body
+      })
+    });
+    const data = await res2.json();
+    if (data.error || data.statusCode >= 400) throw new Error(data.message || data.error?.message || 'Failed to send email');
+    res.json({ success: true, id: data.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Bland AI proxy v3 running on port ${PORT}`);
 });
