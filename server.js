@@ -394,6 +394,113 @@ app.post('/send-email', async (req, res) => {
   }
 });
 
+app.post('/build-site', async (req, res) => {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
+  const { feedback } = req.body;
+  if (!feedback?.businessName) return res.status(400).json({ error: 'feedback.businessName required' });
+
+  const prompt = `You are an expert web designer. Build a complete, stunning, production-quality single-page website based on this client brief.
+
+CLIENT BRIEF:
+Business: ${feedback.businessName}
+Type: ${feedback.type || 'local business'}
+Location: ${feedback.location || ''}
+Phone: ${feedback.phone || ''}
+Services: ${feedback.services || ''}
+Target customers: ${feedback.customers || ''}
+Tagline / differentiator: ${feedback.tagline || ''}
+Style: ${feedback.style || 'modern and clean'}
+Colours: ${feedback.color || 'choose the best color for this industry'}
+Main CTA: ${feedback.cta || 'Contact us'}
+Trust signals: ${feedback.trust || ''}
+Sections to include: ${feedback.sections || 'Hero, Services, About, Testimonials, Contact Form'}
+Special requests: ${feedback.extra || 'none'}
+
+REQUIREMENTS:
+- Complete self-contained HTML with all CSS in a <style> tag
+- One Google Fonts import only
+- Every section from the brief must be included
+- Mobile responsive with CSS media queries
+- Real, convincing placeholder content (not lorem ipsum — write actual copy for this business)
+- Smooth scroll navigation
+- Hero has a prominent phone CTA button
+- Footer with phone, address, copyright
+- Make it genuinely beautiful and conversion-focused
+
+START YOUR RESPONSE WITH <!DOCTYPE html> AND NOTHING ELSE.`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } }
+        })
+      }
+    );
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    let html = parts.filter(p => p.text && !p.thought).map(p => p.text).join('').trim();
+    html = html.replace(/^```html\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```\s*$/i,'').trim();
+    const startIdx = html.toLowerCase().indexOf('<!doctype');
+    if (startIdx === -1) throw new Error('No valid HTML in response');
+    res.json({ html: html.substring(startIdx) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/revise-site', async (req, res) => {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
+  const { html, instruction } = req.body;
+  if (!html || !instruction) return res.status(400).json({ error: 'html and instruction required' });
+
+  const prompt = `You are an expert web designer. You will receive an existing website HTML and a change request. Apply the requested changes precisely and return the complete updated HTML.
+
+CHANGE REQUEST:
+${instruction}
+
+EXISTING HTML:
+${html}
+
+RULES:
+- Return ONLY the complete updated HTML document
+- Keep everything that wasn't mentioned in the change request exactly as is
+- Apply the changes accurately and professionally
+- Do not add explanations or comments
+- START YOUR RESPONSE WITH <!DOCTYPE html> AND NOTHING ELSE.`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } }
+        })
+      }
+    );
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    let html2 = parts.filter(p => p.text && !p.thought).map(p => p.text).join('').trim();
+    html2 = html2.replace(/^```html\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```\s*$/i,'').trim();
+    const startIdx = html2.toLowerCase().indexOf('<!doctype');
+    if (startIdx === -1) throw new Error('No valid HTML in response');
+    res.json({ html: html2.substring(startIdx) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Bland AI proxy v3 running on port ${PORT}`);
 });
