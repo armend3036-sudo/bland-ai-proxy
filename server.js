@@ -317,6 +317,59 @@ START YOUR RESPONSE WITH <!DOCTYPE html> AND NOTHING ELSE.`;
   }
 });
 
+app.post('/deploy-page', async (req, res) => {
+  const netlifyToken = process.env.NETLIFY_TOKEN;
+  if (!netlifyToken) return res.status(500).json({ error: 'NETLIFY_TOKEN not set in Railway variables' });
+
+  const { html, businessName } = req.body;
+  if (!html) return res.status(400).json({ error: 'No HTML provided' });
+
+  const crypto = require('crypto');
+  const slug = (businessName || 'business')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 40);
+  const siteName = `${slug}-preview-${Date.now().toString(36)}`;
+
+  try {
+    const siteRes = await fetch('https://api.netlify.com/api/v1/sites', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${netlifyToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name: siteName })
+    });
+    const site = await siteRes.json();
+    if (site.errors) throw new Error(site.errors[0] || 'Failed to create Netlify site');
+
+    const sha1 = crypto.createHash('sha1').update(html).digest('hex');
+    const deployRes = await fetch(`https://api.netlify.com/api/v1/sites/${site.id}/deploys`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${netlifyToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ files: { '/index.html': sha1 } })
+    });
+    const deploy = await deployRes.json();
+    if (deploy.errors) throw new Error(deploy.errors[0] || 'Failed to create deploy');
+
+    const uploadRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deploy.id}/files/index.html`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${netlifyToken}`,
+        'Content-Type': 'application/octet-stream'
+      },
+      body: html
+    });
+    if (!uploadRes.ok) throw new Error('Failed to upload HTML to Netlify');
+
+    const liveUrl = `https://${site.default_domain}`;
+    res.json({ url: liveUrl, siteId: site.id, siteName: site.name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Bland AI proxy v3 running on port ${PORT}`);
 });
