@@ -176,33 +176,26 @@ Return ONLY a raw JSON object with exactly these keys (no markdown, no backticks
           generationConfig: {
             temperature: 0.1,
             maxOutputTokens: 512,
-            responseMimeType: 'application/json'
+            responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 0 }
           }
         })
       }
     );
 
     const data = await response.json();
-
     if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
 
     const parts = data.candidates?.[0]?.content?.parts || [];
-    const raw = parts.map(p => p.text || '').join('').trim();
+    const raw = parts.filter(p => p.text && !p.thought).map(p => p.text).join('').trim();
 
     if (!raw) throw new Error('Empty response from Gemini');
 
-    const clean = raw
-      .replace(/^```json\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim();
-
-    const firstBrace = clean.indexOf('{');
-    const lastBrace = clean.lastIndexOf('}');
+    const firstBrace = raw.indexOf('{');
+    const lastBrace = raw.lastIndexOf('}');
     if (firstBrace === -1 || lastBrace === -1) throw new Error('No JSON object found in response');
 
-    const jsonStr = clean.substring(firstBrace, lastBrace + 1);
-    const parsed = JSON.parse(jsonStr);
+    const parsed = JSON.parse(raw.substring(firstBrace, lastBrace + 1));
     res.json(parsed);
 
   } catch (err) {
