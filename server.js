@@ -155,15 +155,15 @@ app.post('/analyse', async (req, res) => {
 Transcript:
 ${transcript}
 
-Return ONLY valid JSON with exactly these keys:
-- summary: 2 sentence plain English summary of what happened
-- sentiment: one of exactly: Very Positive, Positive, Neutral, Negative, Very Negative
-- next_step: short recommended action e.g. "Send demo link today", "Follow up Friday", "No action needed"
-- email: email address if the prospect mentioned one during the call, otherwise null
-- interested: true or false — was the prospect genuinely interested?
-- key_objection: the main objection they raised, or null if none
-
-No markdown, no explanation, just the JSON object.`;
+Return ONLY a raw JSON object with exactly these keys (no markdown, no backticks, no explanation, just the JSON):
+{
+  "summary": "2 sentence plain English summary of what happened",
+  "sentiment": "one of: Very Positive, Positive, Neutral, Negative, Very Negative",
+  "next_step": "short recommended action e.g. Send demo link today",
+  "email": "email address if mentioned, or null",
+  "interested": true or false,
+  "key_objection": "main objection raised, or null"
+}`;
 
   try {
     const response = await fetch(
@@ -173,16 +173,38 @@ No markdown, no explanation, just the JSON object.`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 512 }
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 512,
+            responseMimeType: 'application/json'
+          }
         })
       }
     );
+
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    const clean = raw.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
+
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const raw = parts.map(p => p.text || '').join('').trim();
+
+    if (!raw) throw new Error('Empty response from Gemini');
+
+    const clean = raw
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if (firstBrace === -1 || lastBrace === -1) throw new Error('No JSON object found in response');
+
+    const jsonStr = clean.substring(firstBrace, lastBrace + 1);
+    const parsed = JSON.parse(jsonStr);
     res.json(parsed);
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
