@@ -228,7 +228,7 @@ app.post('/generate-page', async (req, res) => {
         {
           headers: {
             'X-Goog-Api-Key': googleKey,
-            'X-Goog-FieldMask': 'displayName,formattedAddress,nationalPhoneNumber,websiteUri,rating,userRatingCount,regularOpeningHours,editorialSummary,photos,types'
+            'X-Goog-FieldMask': 'displayName,formattedAddress,nationalPhoneNumber,websiteUri,rating,userRatingCount,regularOpeningHours,editorialSummary,types'
           }
         }
       );
@@ -242,37 +242,36 @@ app.post('/generate-page', async (req, res) => {
           rating: pd.rating,
           reviewCount: pd.userRatingCount,
           description: pd.editorialSummary?.text,
-          hours: pd.regularOpeningHours?.weekdayDescriptions?.join(', '),
-          types: (pd.types || []).join(', '),
+          hours: pd.regularOpeningHours?.weekdayDescriptions?.join(' | '),
+          types: (pd.types || []).slice(0,3).join(', '),
           niche
         };
       }
     } catch (e) {}
   }
 
-  const prompt = `You are an expert web designer. Create a stunning, modern, conversion-optimised single-page HTML website for a small business.
+  const prompt = `You are an expert web designer. Create a complete, modern, beautiful single-page HTML website for this business.
 
-Business details:
-- Name: ${placeData.name}
-- Type: ${placeData.niche || placeData.types || 'local business'}
-- Phone: ${placeData.phone || 'Call us today'}
-- Address: ${placeData.address || ''}
-- Rating: ${placeData.rating ? placeData.rating + '/5 (' + placeData.reviewCount + ' reviews)' : ''}
-- Description: ${placeData.description || ''}
-- Hours: ${placeData.hours || ''}
+Business:
+Name: ${placeData.name}
+Type: ${placeData.niche || placeData.types || 'local business'}
+Phone: ${placeData.phone || 'Call us'}
+Address: ${placeData.address || ''}
+Rating: ${placeData.rating ? placeData.rating + ' stars (' + placeData.reviewCount + ' reviews)' : ''}
+Description: ${placeData.description || ''}
+Hours: ${placeData.hours || ''}
 
-Requirements:
-- Fully self-contained HTML with all CSS inline (no external dependencies except Google Fonts)
-- Hero section with business name, tagline, and call-to-action button (phone number)
-- Services/about section relevant to their business type
-- Trust signals (rating, years in business, local area)
-- Contact section with phone number prominent
-- Mobile responsive
-- Modern, professional design with a colour scheme that suits their industry
-- Footer with address and phone
-- Add a subtle banner at the top: "✨ Free website preview — built by LaunchSite"
+CRITICAL REQUIREMENTS - you MUST follow all of these:
+1. Output ONLY the HTML. No explanation, no markdown, no code fences, no backticks. Just raw HTML starting with <!DOCTYPE html>
+2. All CSS must be inside a <style> tag in the <head>. No external CSS files.
+3. Use one Google Fonts import link for typography
+4. Sections: hero with big headline + CTA phone button, services/about, trust signals, contact with phone
+5. Add a small top banner: "✨ Free preview — built by LaunchSite"
+6. Fully mobile responsive using CSS media queries
+7. Pick a bold, professional color scheme that fits their industry
+8. Make it genuinely impressive — this must convince the owner to buy
 
-Make it genuinely impressive — this is a sales demo to convince the business owner to buy. Return ONLY the complete HTML document, nothing else.`;
+START YOUR RESPONSE WITH <!DOCTYPE html> AND NOTHING ELSE.`;
 
   try {
     const response = await fetch(
@@ -282,18 +281,36 @@ Make it genuinely impressive — this is a sales demo to convince the business o
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 8192 }
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 8192,
+            thinkingConfig: { thinkingBudget: 0 }
+          }
         })
       }
     );
+
     const data = await response.json();
     if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
     const parts = data.candidates?.[0]?.content?.parts || [];
-    let html = parts.map(p => p.text || '').join('').trim();
-    html = html.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
-    if (!html.includes('<html') && !html.includes('<!DOCTYPE')) {
-      throw new Error('Gemini did not return a valid HTML document');
-    }
+    const textParts = parts.filter(p => p.text && !p.thought);
+    let html = textParts.map(p => p.text).join('').trim();
+
+    html = html
+      .replace(/^```html\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```\s*$/i, '')
+      .trim();
+
+    const doctypeIdx = html.toLowerCase().indexOf('<!doctype');
+    const htmlTagIdx = html.toLowerCase().indexOf('<html');
+    const startIdx = doctypeIdx !== -1 ? doctypeIdx : htmlTagIdx !== -1 ? htmlTagIdx : -1;
+
+    if (startIdx === -1) throw new Error('No valid HTML found in response');
+
+    html = html.substring(startIdx);
+
     res.json({ html, businessName: placeData.name, placeData });
   } catch (err) {
     res.status(500).json({ error: err.message });
